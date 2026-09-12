@@ -1,0 +1,11 @@
+[package]
+name = "local_train_tracks"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bot"
+path = "src/bin_bot.rs"
+
+[profile.release]
+opt-level = 3

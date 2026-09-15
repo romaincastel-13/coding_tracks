@@ -24,6 +24,7 @@ impl Rng {
 fn make_map(seed: u64) -> State {
     let mut rng = Rng::new(seed);
     let mut cells = Vec::with_capacity(WIDTH*HEIGHT);
+    let mut i = 0;
 
     // Simple deterministic regions: 3x2-ish blocks, with random terrain.
     for y in 0..HEIGHT {
@@ -33,12 +34,14 @@ fn make_map(seed: u64) -> State {
             let terrain = if terrain < 70 { PLAINS } else if terrain < 90 { RIVER } else { MOUNTAIN };
             cells.push(Cell {
                 region_id,
+                cell_id: i,
                 terrain,
                 track_owner: FREE,
                 instability: 0,
                 inked: false,
                 active: vec![],
             });
+            i+=1;
         }
     }
 
@@ -84,10 +87,12 @@ fn make_map(seed: u64) -> State {
 
     State {
         my_id: 0,
+        foe_id: 1,
         width: WIDTH,
         height: HEIGHT,
         cells,
         towns,
+        regions: HashMap::new(),
         my_score: 0,
         foe_score: 0,
     }
@@ -219,6 +224,7 @@ fn print_map(state: &State) {
 
 fn run_one(seed: u64, bot_path: &str) -> bool {
     let mut state = make_map(seed);
+    eprintln!("Starting bot: {:?}", bot_path);
     let mut child = Command::new(bot_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -226,7 +232,7 @@ fn run_one(seed: u64, bot_path: &str) -> bool {
         .spawn()
         .expect("failed to start bot");
 
-    let mut sin = child.stdin.take().unwrap();
+    let mut sin: std::process::ChildStdin = child.stdin.take().unwrap();
     let sout = child.stdout.take().unwrap();
     let mut reader = BufReader::new(sout);
 
@@ -297,7 +303,7 @@ fn main() {
     });
 
     let mut wins = 0;
-    for seed in 1..=5 {
+    for seed in 16..=16 {
         println!("========================================");
         println!("GAME {seed}");
         println!("========================================");

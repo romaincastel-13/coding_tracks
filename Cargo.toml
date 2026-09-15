@@ -2,10 +2,19 @@
 name = "local_train_tracks"
 version = "0.1.0"
 edition = "2021"
+default-run = "runner"
 
 [[bin]]
 name = "bot"
 path = "src/bin_bot.rs"
+
+[[bin]]
+name = "runner"
+path = "src/bin_runner.rs"
+
+[[bin]]
+name = "test"
+path = "src/bin_test.rs"
 
 [profile.release]
 opt-level = 3

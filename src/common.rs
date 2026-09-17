@@ -113,6 +113,12 @@ impl Action {
     }
 }
 
+pub fn select_best_path_among_several(paths: Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
+    Vec::new()
+}
+
+
+
 pub fn idx(x: usize, y: usize, w: usize) -> usize {
     y * w + x
 }
@@ -242,6 +248,52 @@ pub fn cheapest_path(
     path.reverse();
     Some(path)
 }
+
+pub fn best_possible_path(
+    state: &State,
+    from: (usize, usize),
+    to: (usize, usize),
+) -> Option<Vec<(usize, usize)>> {
+    // BFS on towns + track cells. Neighbor order implements N,E,S,W tie-break.
+    let n = state.width * state.height;
+    let s = idx(from.0, from.1, state.width);
+    let goal = idx(to.0, to.1, state.width);
+    let mut seen = vec![false; n];
+    let mut parent = vec![None; n];
+    let mut q = VecDeque::new();
+    seen[s] = true;
+    q.push_back(s);
+
+    while let Some(u) = q.pop_front() {
+        if u == goal {
+            break;
+        }
+        let x = u % state.width;
+        let y = u / state.width;
+        for (nx, ny) in neighbors(x, y, state.width, state.height) {
+            let v = idx(nx, ny, state.width);
+            if !seen[v] && is_rail_cell(state, nx, ny) {
+                seen[v] = true;
+                parent[v] = Some(u);
+                q.push_back(v);
+            }
+        }
+    }
+
+    if !seen[goal] {
+        return None;
+    }
+    let mut path = Vec::new();
+    let mut cur = goal;
+    path.push((cur % state.width, cur / state.width));
+    while cur != s {
+        cur = parent[cur]?;
+        path.push((cur % state.width, cur / state.width));
+    }
+    path.reverse();
+    Some(path)
+}
+
 
 pub fn shortest_active_path(
     state: &State,
@@ -468,7 +520,7 @@ pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Result<()> {
         if let Some(r) = region {
             if track_owner != -1 && track_owner != 2 && !state.cells[i].inked {
                 r.score[track_owner as usize] +=
-                    (1 + 2 * (state.cells[i].active.len() as i32) + state.cells[i].instability);
+                    (1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability);
             }
         } else {
             panic!("region not found");
@@ -614,7 +666,7 @@ fn best_forward_path(
 
 /// Find all requested town connections.
 ///
-pub fn find_connections(state: &State) -> Vec<Connection> {
+pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
     // -------------------------------------------------------------
     // Build an ID -> coordinate map.
     //

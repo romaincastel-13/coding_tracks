@@ -16,5 +16,14 @@ path = "src/bin_runner.rs"
 name = "test"
 path = "src/bin_test.rs"
 
+[[bin]]
+name = "testgui"
+path = "src/bin_testegui.rs"
+
 [profile.release]
 opt-level = 3
+
+[dependencies]
+eframe = "0.36.2"
+egui = "0.36.2"
+

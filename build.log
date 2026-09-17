@@ -1,0 +1,472 @@
+warning: unnecessary parentheses around assigned value
+   --> src/common.rs:471:21
+    |
+471 |                     (1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability);
+    |                     ^                                                                            ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+471 -                     (1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability);
+471 +                     1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability;
+    |
+
+warning: unused variable: `key`
+   --> src/common.rs:441:10
+    |
+441 |     for (key, value) in &mut state.regions {
+    |          ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `priority` is never used
+   --> src/common.rs:505:8
+    |
+504 | impl Direction {
+    | -------------- associated function in this implementation
+505 |     fn priority() -> [Direction; 4] {
+    |        ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `local_train_tracks` (lib) generated 3 warnings (run `cargo fix --lib -p local_train_tracks` to apply 2 suggestions)
+   Compiling local_train_tracks v0.1.0 (/home/rcastel/Documents/coding_tracks)
+warning: unnecessary parentheses around assigned value
+   --> src/common.rs:471:21
+    |
+471 | ...   (1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability);
+    |       ^                                                                            ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+471 -                     (1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability);
+471 +                     1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability;
+    |
+
+warning: unused import: `VecDeque`
+ --> src/bin_test.rs:2:33
+  |
+2 | use std::collections::{HashMap, VecDeque, HashSet};
+  |                                 ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `BufRead`
+ --> src/bin_bot.rs:4:21
+  |
+4 | use std::io::{self, BufRead, Write};
+  |                     ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `Event::MouseWheel` and `Key::V`
+ --> src/bin_testegui.rs:2:12
+  |
+2 | use egui::{Event::MouseWheel, Key::V};
+  |            ^^^^^^^^^^^^^^^^^  ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `VecDeque`
+ --> src/bin_testegui.rs:4:33
+  |
+4 | use std::collections::{HashMap, VecDeque, HashSet};
+  |                                 ^^^^^^^^
+
+warning: constant `PLAINS` is never used
+ --> src/common.rs:4:11
+  |
+4 | pub const PLAINS: i32 = 0;
+  |           ^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `RIVER` is never used
+ --> src/common.rs:5:11
+  |
+5 | pub const RIVER: i32 = 1;
+  |           ^^^^^
+
+warning: constant `MOUNTAIN` is never used
+ --> src/common.rs:6:11
+  |
+6 | pub const MOUNTAIN: i32 = 2;
+  |           ^^^^^^^^
+
+warning: constant `FREE` is never used
+ --> src/common.rs:7:11
+  |
+7 | pub const FREE: i32 = -1;
+  |           ^^^^
+
+warning: constant `NEUTRAL` is never used
+ --> src/common.rs:8:11
+  |
+8 | pub const NEUTRAL: i32 = 2;
+  |           ^^^^^^^
+
+warning: multiple fields are never read
+  --> src/common.rs:12:9
+   |
+11 | pub struct Cell {
+   |            ---- fields in this struct
+12 |     pub region_id: i32,
+   |         ^^^^^^^^^
+13 |     pub cell_id: usize,
+   |         ^^^^^^^
+14 |     pub terrain: i32,
+   |         ^^^^^^^
+15 |     pub track_owner: i32,
+   |         ^^^^^^^^^^^
+16 |     pub instability: i32,
+   |         ^^^^^^^^^^^
+17 |     pub inked: bool,
+   |         ^^^^^
+18 |     pub active: Vec<(i32, i32)>,
+   |         ^^^^^^
+   |
+   = note: `Cell` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `cell_ids`, `score`, and `has_town` are never read
+  --> src/common.rs:23:9
+   |
+22 | pub struct Region {
+   |            ------ fields in this struct
+23 |     pub cell_ids: Vec<usize>,
+   |         ^^^^^^^^
+24 |     pub score: [i32; 2],
+   |         ^^^^^
+25 |     pub has_town: bool,
+   |         ^^^^^^^^
+   |
+   = note: `Region` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: methods `cells`, `owner`, `instability`, and `inked` are never used
+  --> src/common.rs:29:12
+   |
+28 | impl Region {
+   | ----------- methods in this implementation
+29 |     pub fn cells<'a>(&self, state: &'a State) -> impl Iterator<Item = &'...
+   |            ^^^^^
+...
+33 |     pub fn owner(&self) -> i32 {
+   |            ^^^^^
+...
+44 |     pub fn instability(&self, state: &State) -> i32 {
+   |            ^^^^^^^^^^^
+...
+48 |     pub fn inked(&self, state: &State) -> bool {
+   |            ^^^^^
+
+warning: multiple fields are never read
+  --> src/common.rs:63:9
+   |
+62 | pub struct State {
+   |            ----- fields in this struct
+63 |     pub my_id: i32,
+   |         ^^^^^
+64 |     pub foe_id: i32,
+   |         ^^^^^^
+65 |     pub width: usize,
+   |         ^^^^^
+66 |     pub height: usize,
+   |         ^^^^^^
+67 |     pub cells: Vec<Cell>,
+   |         ^^^^^
+68 |     pub towns: Vec<Town>,
+69 |     pub regions: HashMap<i32, Region>,
+   |         ^^^^^^^
+70 |     pub connections: HashSet<(i32, i32)>,
+   |         ^^^^^^^^^^^
+71 |     pub my_score: i32,
+   |         ^^^^^^^^
+72 |     pub foe_score: i32,
+   |         ^^^^^^^^^
+   |
+   = note: `State` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `has_connection` is never used
+  --> src/common.rs:76:12
+   |
+75 | impl State {
+   | ---------- method in this implementation
+76 |     pub fn has_connection(&self, a: &Town, b: &Town) -> bool {
+   |            ^^^^^^^^^^^^^^
+
+warning: enum `Action` is never used
+  --> src/common.rs:82:10
+   |
+82 | pub enum Action {
+   |          ^^^^^^
+
+warning: associated function `parse` is never used
+  --> src/common.rs:90:12
+   |
+89 | impl Action {
+   | ----------- associated function in this implementation
+90 |     pub fn parse(s: &str) -> Result<Self, String> {
+   |            ^^^^^
+
+warning: function `idx` is never used
+   --> src/common.rs:116:8
+    |
+116 | pub fn idx(x: usize, y: usize, w: usize) -> usize {
+    |        ^^^
+
+warning: function `terrain_cost` is never used
+   --> src/common.rs:120:8
+    |
+120 | pub fn terrain_cost(t: i32) -> i32 {
+    |        ^^^^^^^^^^^^
+
+warning: function `town_at` is never used
+   --> src/common.rs:129:8
+    |
+129 | pub fn town_at(state: &State, x: usize, y: usize) -> Option<i32> {
+    |        ^^^^^^^
+
+warning: function `is_rail_cell` is never used
+   --> src/common.rs:137:8
+    |
+137 | pub fn is_rail_cell(state: &State, x: usize, y: usize) -> bool {
+    |        ^^^^^^^^^^^^
+
+warning: function `neighbors` is never used
+   --> src/common.rs:141:8
+    |
+141 | pub fn neighbors(x: usize, y: usize, w: usize, h: usize) -> Vec<(usize,...
+    |        ^^^^^^^^^
+
+warning: function `cheapest_path` is never used
+   --> src/common.rs:159:8
+    |
+159 | pub fn cheapest_path(
+    |        ^^^^^^^^^^^^^
+
+warning: function `shortest_active_path` is never used
+   --> src/common.rs:246:8
+    |
+246 | pub fn shortest_active_path(
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `recompute_active` is never used
+   --> src/common.rs:291:8
+    |
+291 | pub fn recompute_active(state: &mut State) {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `score_connections` is never used
+   --> src/common.rs:312:8
+    |
+312 | pub fn score_connections(state: &State) -> (i32, i32) {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: function `any_active_connection` is never used
+   --> src/common.rs:337:8
+    |
+337 | pub fn any_active_connection(state: &State) -> bool {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `parse_initial` is never used
+   --> src/common.rs:350:8
+    |
+350 | pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
+    |        ^^^^^^^^^^^^^
+
+warning: function `read_turn` is never used
+   --> src/common.rs:430:8
+    |
+430 | pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Resul...
+    |        ^^^^^^^^^
+
+warning: fields `id` and `path` are never read
+   --> src/common.rs:492:9
+    |
+491 | pub struct Connection {
+    |            ---------- fields in this struct
+492 |     pub id: (i32, i32),
+    |         ^^
+493 |     pub path: Vec<(usize, usize)>,
+    |         ^^^^
+    |
+    = note: `Connection` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: associated function `priority` is never used
+   --> src/common.rs:505:8
+    |
+504 | impl Direction {
+    | -------------- associated function in this implementation
+505 |     fn priority() -> [Direction; 4] {
+    |        ^^^^^^^^
+
+warning: unused variable: `id`
+  --> src/bin_bot.rs:34:49
+   |
+34 |     let max = state.regions.iter().max_by_key(|(id, region)| {
+   |                                                 ^^ help: if this is intentional, prefix it with an underscore: `_id`
+
+warning: unused variable: `value`
+  --> src/bin_bot.rs:42:23
+   |
+42 |     if let Some((key, value)) = max {
+   |                       ^^^^^ help: if this is intentional, prefix it with an underscore: `_value`
+
+warning: fields `cell_id` and `terrain` are never read
+  --> src/common.rs:13:9
+   |
+11 | pub struct Cell {
+   |            ---- fields in this struct
+12 |     pub region_id: i32,
+13 |     pub cell_id: usize,
+   |         ^^^^^^^
+14 |     pub terrain: i32,
+   |         ^^^^^^^
+   |
+   = note: `Cell` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: methods `cells`, `owner`, and `instability` are never used
+  --> src/common.rs:29:12
+   |
+28 | impl Region {
+   | ----------- methods in this implementation
+29 |     pub fn cells<'a>(&self, state: &'a State) -> impl Iterator<Item = &'...
+   |            ^^^^^
+...
+33 |     pub fn owner(&self) -> i32 {
+   |            ^^^^^
+...
+44 |     pub fn instability(&self, state: &State) -> i32 {
+   |            ^^^^^^^^^^^
+
+warning: field `foe_id` is never read
+  --> src/common.rs:64:9
+   |
+62 | pub struct State {
+   |            ----- field in this struct
+63 |     pub my_id: i32,
+64 |     pub foe_id: i32,
+   |         ^^^^^^
+   |
+   = note: `State` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: struct `Connection` is never constructed
+   --> src/common.rs:491:12
+    |
+491 | pub struct Connection {
+    |            ^^^^^^^^^^
+
+warning: enum `Direction` is never used
+   --> src/common.rs:497:6
+    |
+497 | enum Direction {
+    |      ^^^^^^^^^
+
+warning: associated items `priority` and `rank` are never used
+   --> src/common.rs:505:8
+    |
+504 | impl Direction {
+    | -------------- associated items in this implementation
+505 |     fn priority() -> [Direction; 4] {
+    |        ^^^^^^^^
+...
+514 |     fn rank(self) -> usize {
+    |        ^^^^
+
+warning: function `direction_between` is never used
+   --> src/common.rs:529:4
+    |
+529 | fn direction_between(
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `best_forward_path` is never used
+   --> src/common.rs:548:4
+    |
+548 | fn best_forward_path(
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `find_best_initial_connections` is never used
+   --> src/common.rs:617:8
+    |
+617 | pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `cc`
+  --> src/bin_testegui.rs:16:19
+   |
+16 |         Box::new(|cc| {
+   |                   ^^ help: if this is intentional, prefix it with an underscore: `_cc`
+
+warning: unused variable: `town`
+   --> src/bin_testegui.rs:705:13
+    |
+705 |         let town = Town {
+    |             ^^^^ help: if this is intentional, prefix it with an underscore: `_town`
+
+warning: function `main_simple` is never used
+ --> src/bin_testegui.rs:7:4
+  |
+7 | fn main_simple() -> eframe::Result {
+  |    ^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `MyApp` is never constructed
+  --> src/bin_testegui.rs:25:8
+   |
+25 | struct MyApp {
+   |        ^^^^^
+
+warning: field `cell_id` is never read
+  --> src/common.rs:13:9
+   |
+11 | pub struct Cell {
+   |            ---- field in this struct
+12 |     pub region_id: i32,
+13 |     pub cell_id: usize,
+   |         ^^^^^^^
+   |
+   = note: `Cell` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `my_id`, `foe_id`, `regions`, `connections`, `my_score`, and `foe_score` are never read
+  --> src/common.rs:63:9
+   |
+62 | pub struct State {
+   |            ----- fields in this struct
+63 |     pub my_id: i32,
+   |         ^^^^^
+64 |     pub foe_id: i32,
+   |         ^^^^^^
+...
+69 |     pub regions: HashMap<i32, Region>,
+   |         ^^^^^^^
+70 |     pub connections: HashSet<(i32, i32)>,
+   |         ^^^^^^^^^^^
+71 |     pub my_score: i32,
+   |         ^^^^^^^^
+72 |     pub foe_score: i32,
+   |         ^^^^^^^^^
+   |
+   = note: `State` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `0` is never read
+  --> src/common.rs:84:13
+   |
+84 |     Disrupt(usize),
+   |     ------- ^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `Action` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+84 -     Disrupt(usize),
+84 +     Disrupt(()),
+   |
+
+warning: `local_train_tracks` (bin "test") generated 29 warnings (2 duplicates) (run `cargo fix --bin "test" -p local_train_tracks` to apply 1 suggestion)
+warning: `local_train_tracks` (bin "bot") generated 25 warnings (13 duplicates) (run `cargo fix --bin "bot" -p local_train_tracks` to apply 3 suggestions)
+warning: `local_train_tracks` (bin "runner") generated 16 warnings (12 duplicates) (run `cargo fix --bin "runner" -p local_train_tracks` to apply 1 suggestion)
+warning: `local_train_tracks` (bin "testgui") generated 28 warnings (22 duplicates) (run `cargo fix --bin "testgui" -p local_train_tracks` to apply 4 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.05s

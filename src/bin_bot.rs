@@ -1,5 +1,6 @@
 mod common;
-use common::*;
+
+use crate::common::*;
 use std::io::{self, BufRead, Write};
 
 fn choose_action_place(state: &State) -> String {

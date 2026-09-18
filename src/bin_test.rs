@@ -8,7 +8,7 @@ fn main() {
     let mut towns = Vec::new();
     towns.push(
         Town {
-            id: towns.len() as i32,
+            id: towns.len(),
             x : 6,
             y: 0,
             desired: vec![1]
@@ -16,17 +16,19 @@ fn main() {
     );
     towns.push(
         Town {
-            id: towns.len() as i32,
+            id: towns.len(),
             x : 3,
             y: 3,
             desired: Vec::new()
         }
     );
 
-    let state = make_map(5, 30, 30);
+    let mut state = make_map(5, 30, 30);
+    state.cells[idx(10, 4, state.width)].inked = true;
 
     let res2 = find_best_initial_connections(&state);
-    let res = bfs_that_returns_all_shortest(&state, (1,1), (3, 3));
+    let res3 = bfs_that_returns_all_shortest(&state, (10,5), (3, 3));
+    let res = choose_best_among_shortest_paths(res3);
     println!("{res:?}");
 
 }
@@ -72,6 +74,7 @@ fn make_map(seed: u64, width:usize, height:usize) -> State {
                 instability: 0,
                 inked: false,
                 active: vec![],
+                town_id: None
             });
             i += 1;
         }
@@ -109,11 +112,12 @@ fn make_map(seed: u64, width:usize, height:usize) -> State {
     let mut towns = Vec::new();
     for (i, (x, y)) in positions.iter().enumerate() {
         towns.push(Town {
-            id: i as i32,
+            id: i,
             x: *x,
             y: *y,
             desired: vec![],
         });
+
     }
 
     // Guarantee a simple objective: town 0 wants town 1.
@@ -125,8 +129,8 @@ fn make_map(seed: u64, width:usize, height:usize) -> State {
     for i in 1..towns.len() {
         if towns.len() > 3 && rng.range(3) == 0 {
             let j = rng.range(towns.len());
-            if j != i && !towns[i].desired.contains(&(j as i32)) {
-                towns[i].desired.push(j as i32);
+            if j != i && !towns[i].desired.contains(&j) {
+                towns[i].desired.push(j);
             }
         }
     }
@@ -138,9 +142,10 @@ fn make_map(seed: u64, width:usize, height:usize) -> State {
         height: height,
         cells,
         towns,
-        connections: HashSet::new(),
+        connections: HashMap::new(),
         regions: HashMap::new(),
         my_score: 0,
         foe_score: 0,
+        top_cells: [0; 3]
     }
 }

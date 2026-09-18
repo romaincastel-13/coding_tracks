@@ -1,9 +1,10 @@
 mod common;
 
 use crate::common::*;
+use std::fmt::Write as FmtWrite;
 use std::io::{self, BufRead, Write};
 
-fn choose_action_place(state: &State) -> String {
+fn choose_action_place_old(state: &State) -> String {
     // League 1 strategy:
     // Find any desired town pair that is not yet connected and use AUTOPLACE.
     // This is intentionally simple so you can replace it with your real AI.
@@ -21,15 +22,25 @@ fn choose_action_place(state: &State) -> String {
     "WAIT".to_string()
 }
 
+fn choose_action_place(state: &mut State, player: usize) -> String {
+    state.analyse_connections();
+    state.score_cells(player);
+    
+    let mut out = String::new();
+    for i in (0..3).rev() {
+        let cell_id = state.cells[state.top_cells[i]].cell_id;
+        eprintln!("cell {cell_id:?}");
+        out.push_str(&format!(
+            "PLACE_TRACKS {} {};",
+            cell_id % state.width,
+            cell_id / state.width
+        ));
+    }
+    out
+}
+
 fn choose_action_disrupt(state: &State) -> String {
-    // League 1 strategy:
-    // Find any desired town pair that is not yet connected and use AUTOPLACE.
-    // This is intentionally simple so you can replace it with your real AI.
-    // for c in &state.cells {
-    //     if c.track_owner == state.foe_id {
-    //         return format!("DISRUPT {}", c.region_id);
-    //     }
-    // }
+
     let (a, b) = if state.my_id == 0 { (1, 0) } else { (0, 1) };
     let max = state.regions.iter().max_by_key(|(id, region)| {
         // your definition of "max"
@@ -45,9 +56,10 @@ fn choose_action_disrupt(state: &State) -> String {
     "WAIT".to_string()
 }
 
-fn choose_action(state: &State) -> String {
+fn choose_action(state: &mut State) -> String {
     let mut a = choose_action_disrupt(state);
-    let b = choose_action_place(state);
+    let player = state.my_id as usize;
+    let b = choose_action_place(state, player);
     a.push_str(";");
     a.push_str(&b);
     a
@@ -56,6 +68,7 @@ fn choose_action(state: &State) -> String {
 fn main() {
     let stdin = io::stdin();
     let mut input = stdin.lock();
+    
     let mut state = match parse_initial(&mut input) {
         Ok(s) => s,
         Err(e) => {
@@ -70,7 +83,7 @@ fn main() {
 
     let stdout = io::stdout();
     let mut out = stdout.lock();
-
+    
     loop {
         match read_turn(&mut input, &mut state) {
             Ok(()) => {}
@@ -79,7 +92,7 @@ fn main() {
                 break;
             }
         }
-        let action = choose_action(&state);
+        let action = choose_action(&mut state);
         writeln!(out, "{action}").unwrap();
         out.flush().unwrap();
     }

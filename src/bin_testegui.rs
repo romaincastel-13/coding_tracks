@@ -607,6 +607,7 @@ fn make_test_states() -> Vec<State> {
                     instability: 0,
                     inked,
                     active: Vec::new(),
+                    town_id: None
                 });
             }
         }
@@ -626,9 +627,10 @@ fn make_test_states() -> Vec<State> {
             cells,
             towns: vec![town],
             regions: HashMap::new(),
-            connections: HashSet::new(),
+            connections: HashMap::new(),
             my_score: step as i32,
             foe_score: (step / 2) as i32,
+            top_cells: [0; 3]
         });
     }
 

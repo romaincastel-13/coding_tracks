@@ -1,7 +1,11 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::io::{self, BufRead};
 
 use eframe::wgpu::wgc::device::UserClosures;
+use egui::widget_style;
+
+//devrait distinguer best path / cheapest path (for instability d4une connection , etc ?) ?
 
 pub const PLAINS: i32 = 0;
 pub const RIVER: i32 = 1;
@@ -17,7 +21,52 @@ pub struct Cell {
     pub track_owner: i32,
     pub instability: i32,
     pub inked: bool,
-    pub active: Vec<(i32, i32)>,
+    pub active: Vec<(usize, usize)>,
+    pub town_id: Option<usize>,
+}
+
+impl Cell {
+    pub fn score(&self, state: &State, player: usize) -> i32 {
+        if self.town_id != None || self.track_owner != -1 {
+            return -1000000;
+        }
+
+        let mut score = 0;
+        let cell_coord = (self.cell_id % state.width, self.cell_id / state.width);
+        for (_, connection) in &state.connections {
+            let mut connection_score = 0;
+
+            let mult = if connection.ownership[player]
+                >= connection.ownership[(player + 1) % 2] - 1
+            {
+                3
+            } else {
+                1
+            };
+
+            for coord in &connection.best_path {
+                if *coord == cell_coord {
+                    connection_score += 2;
+                }
+            }
+
+            for coord in &connection.quickest_path {
+                if *coord == cell_coord {
+                    connection_score += 2;
+                }
+            }
+
+            connection_score -= connection.instability;
+            connection_score += connection.best_path.len() as i32;
+            connection_score -= connection.paints_to_activate as i32 * 2;
+
+            connection_score *= mult;
+
+            score += connection_score;
+        }
+
+        score
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -54,10 +103,121 @@ impl Region {
 
 #[derive(Clone, Debug)]
 pub struct Town {
-    pub id: i32,
+    pub id: usize,
     pub x: usize,
     pub y: usize,
-    pub desired: Vec<i32>,
+    pub desired: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Connection {
+    id: (usize, usize),
+    active_path: Vec<(usize, usize)>,
+    best_path: Vec<(usize, usize)>,
+    quickest_path: Vec<(usize, usize)>,
+    correlation: usize,
+    ownership: [usize; 2],
+    paints_to_activate: usize,
+    dead: bool,
+    instability: i32,
+    most_instable: (usize, usize),
+}
+
+impl Connection {
+    pub fn new(id: (usize, usize), dead: bool) -> Connection {
+        Connection {
+            id,
+            active_path: Vec::new(),
+            best_path: Vec::new(),
+            quickest_path: Vec::new(),
+            correlation: 0,
+            ownership: [0, 0],
+            paints_to_activate: 0,
+            dead,
+            instability: -1,
+            most_instable: (0, 0),
+        }
+    }
+
+    pub fn analyse(&mut self, state: &State) {
+        
+        if self.dead {
+            return;
+        }
+        if !self.active_path.is_empty() {
+            let mut p0 = 0;
+            let mut p1 = 0;
+            let l = self.active_path.len();
+            for (x, y) in &self.active_path {
+                let c = &state.cells[idx(*x, *y, state.width)];
+                if c.track_owner == 0 || c.track_owner == 2 {
+                    p0 += 1;
+                }
+                if c.track_owner == 1 || c.track_owner == 2 {
+                    p1 += 1;
+                }
+            }
+            self.ownership = [p0 * 100 / l, p1 * 100 / l];
+            return;
+        }
+        let (from, to) = (
+            (state.towns[self.id.0].x, state.towns[self.id.0].y),
+            (state.towns[self.id.1].x, state.towns[self.id.1].y),
+        );
+        self.best_path = bfs_shortest(state, from, to);
+            
+        if self.best_path.is_empty() {
+            self.dead = true;
+            return;
+        }
+        if let Some(p) = cheapest_path(state, from, to) {
+            self.paints_to_activate = p.len();
+            self.quickest_path = p;
+        } else {
+            panic!("cheapest_path not found?? bug??");
+        }
+        for (x, y) in &self.best_path {
+            let i = state.cells[idx(*x, *y, state.width)].instability;
+            if i > self.instability {
+                self.instability = i;
+                self.most_instable = (*x, *y);
+            }
+        }
+        let set: HashSet<_> = self.best_path.iter().collect();
+        let similitudes = self
+            .quickest_path
+            .iter()
+            .filter(|x| set.contains(x))
+            .count();
+        self.correlation = similitudes * 100 / self.best_path.len();
+        let mut p0 = 0;
+        let mut p1 = 0;
+        let l = self.quickest_path.len() + self.best_path.len();
+        for (x, y) in &self.best_path {
+            let c = &state.cells[idx(*x, *y, state.width)];
+            if c.track_owner == 0 || c.track_owner == 2 {
+                p0 += 1;
+            }
+            if c.track_owner == 1 || c.track_owner == 2 {
+                p1 += 1;
+            }
+        }
+        for (x, y) in &self.quickest_path {
+            let c = &state.cells[idx(*x, *y, state.width)];
+            if c.track_owner == 0 || c.track_owner == 2 {
+                p0 += 1;
+            }
+            if c.track_owner == 1 || c.track_owner == 2 {
+                p1 += 1;
+            }
+            // let i = c.instability;
+            // if i > self.instability {
+            //     self.instability = i;
+            //     self.most_instable = (*x, *y);
+            // }
+        }
+        self.ownership = [p0 * 100 / l, p1 * 100 / l];
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -69,14 +229,47 @@ pub struct State {
     pub cells: Vec<Cell>,
     pub towns: Vec<Town>,
     pub regions: HashMap<i32, Region>,
-    pub connections: HashSet<(i32, i32)>,
+    pub connections: HashMap<(usize, usize), Connection>,
     pub my_score: i32,
     pub foe_score: i32,
+    pub top_cells: [usize; 3],
 }
 
 impl State {
     pub fn has_connection(&self, a: &Town, b: &Town) -> bool {
-        self.connections.contains(&(a.id, b.id)) || self.connections.contains(&(b.id, a.id))
+        self.connections.contains_key(&(a.id, b.id)) || self.connections.contains_key(&(b.id, a.id))
+    }
+
+    pub fn analyse_connections(&mut self) {
+        let mut connections = std::mem::take(&mut self.connections);
+
+        for connection in connections.values_mut() {
+            
+            connection.analyse(self);
+        }
+
+        self.connections = connections;
+    }
+
+    pub fn score_cells(&mut self, player: usize) {
+        let mut top_scores = [-10000; 3];
+        self.top_cells = [0; 3];
+        for cell in &self.cells {
+            let score = cell.score(self, player);
+            if  score > top_scores[0] {
+                top_scores[0] = score;
+                self.top_cells[0] = cell.cell_id;
+                if top_scores[0] > top_scores[1] {
+                    top_scores.swap(0, 1);
+                    self.top_cells.swap(0, 1);
+                }
+                if top_scores[1] > top_scores[2] {
+                    top_scores.swap(1, 2);
+                    self.top_cells.swap(1, 2);
+                }
+            }
+        }
+
     }
 }
 
@@ -115,10 +308,157 @@ impl Action {
     }
 }
 
-pub fn select_best_path_among_several(paths: Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
-    let mut res = Vec::new();
-    res
+
+
+pub fn bfs_shortest(
+    state: &State,
+    from: (usize, usize),
+    to: (usize, usize),
+) -> Vec<(usize, usize)> {
+    let width = state.width;
+    let height = state.height;
+    let size = width * height;
+
+    let start = idx(from.0, from.1, width);
+    let target = idx(to.0, to.1, width);
+
+    // usize::MAX means "not visited"
+    let mut dist = vec![usize::MAX; size];
+
+    // Store only ONE parent per cell.
+    let mut parent = vec![usize::MAX; size];
+
+    let mut frontier = VecDeque::new();
+
+    dist[start] = 0;
+    frontier.push_back(start);
+
+    while let Some(current) = frontier.pop_front() {
+        if current == target {
+            break;
+        }
+
+        let x = current % width;
+        let y = current / width;
+        let next_dist = dist[current] + 1;
+
+        // NORTH
+        if y > 0 {
+            visit(
+                x,
+                y - 1,
+                current,
+                next_dist,
+                state,
+                width,
+                &mut dist,
+                &mut parent,
+                &mut frontier,
+            );
+        }
+
+        // EAST
+        if x + 1 < width {
+            visit(
+                x + 1,
+                y,
+                current,
+                next_dist,
+                state,
+                width,
+                &mut dist,
+                &mut parent,
+                &mut frontier,
+            );
+        }
+
+        // SOUTH
+        if y + 1 < height {
+            visit(
+                x,
+                y + 1,
+                current,
+                next_dist,
+                state,
+                width,
+                &mut dist,
+                &mut parent,
+                &mut frontier,
+            );
+        }
+
+        // WEST
+        if x > 0 {
+            visit(
+                x - 1,
+                y,
+                current,
+                next_dist,
+                state,
+                width,
+                &mut dist,
+                &mut parent,
+                &mut frontier,
+            );
+        }
+    }
+
+    // No path.
+    if dist[target] == usize::MAX {
+        return Vec::new();
+    }
+
+    // Reconstruct path backwards.
+    let mut path = Vec::with_capacity(dist[target] + 1);
+
+    let mut current = target;
+
+    loop {
+        let x = current % width;
+        let y = current / width;
+
+        path.push((x, y));
+
+        if current == start {
+            break;
+        }
+
+        current = parent[current];
+    }
+
+    path.reverse();
+    path
 }
+
+
+#[inline]
+fn visit(
+    x: usize,
+    y: usize,
+    current: usize,
+    next_dist: usize,
+    state: &State,
+    width: usize,
+    dist: &mut [usize],
+    parent: &mut [usize],
+    frontier: &mut VecDeque<usize>,
+) {
+    let next = idx(x, y, width);
+
+    if state.cells[next].inked {
+        return;
+    }
+
+    // Already visited.
+    if dist[next] != usize::MAX {
+        return;
+    }
+
+    dist[next] = next_dist;
+    parent[next] = current;
+    frontier.push_back(next);
+}
+
 
 pub fn bfs_that_returns_all_shortest(
     state: &State,
@@ -162,7 +502,7 @@ pub fn bfs_that_returns_all_shortest(
     loop {
         let mut new_out = Vec::new();
         for path in &out {
-            if let Some(node) = path.last(){
+            if let Some(node) = path.last() {
                 if *node == from {
                     for path in &mut out {
                         path.reverse();
@@ -188,10 +528,11 @@ pub fn bfs_that_returns_all_shortest(
     }
 }
 
+pub fn choose_best_among_shortest_paths(paths: Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
 
-fn choose_best_among_shortest_paths(
-    paths: Vec<Vec<(usize, usize)>>,
-) -> Vec<(usize, usize)> {
     let rank = |from: (usize, usize), to: (usize, usize)| -> usize {
         match (
             to.0 as isize - from.0 as isize,
@@ -243,7 +584,7 @@ pub fn terrain_cost(t: i32) -> i32 {
     }
 }
 
-pub fn town_at(state: &State, x: usize, y: usize) -> Option<i32> {
+pub fn town_at(state: &State, x: usize, y: usize) -> Option<usize> {
     state
         .towns
         .iter()
@@ -251,8 +592,11 @@ pub fn town_at(state: &State, x: usize, y: usize) -> Option<i32> {
         .map(|t| t.id)
 }
 
+#[inline]
 pub fn is_rail_cell(state: &State, x: usize, y: usize) -> bool {
-    town_at(state, x, y).is_some() || state.cells[idx(x, y, state.width)].track_owner != FREE
+    let cell = &state.cells[idx(x, y, state.width)];
+
+    cell.town_id.is_some() || cell.track_owner != FREE
 }
 
 pub fn neighbors(x: usize, y: usize, w: usize, h: usize) -> Vec<(usize, usize)> {
@@ -278,85 +622,146 @@ pub fn cheapest_path(
     from: (usize, usize),
     to: (usize, usize),
 ) -> Option<Vec<(usize, usize)>> {
-    // Dijkstra on paint cost. Existing tracks and towns cost 0; empty cells
-    // cost the terrain price. The priority queue is implemented simply with
-    // repeated min selection because maps are only 21x14 .. 30x20.
-    #[derive(Clone, Copy)]
-    struct Node {
-        cost: i32,
-        x: usize,
-        y: usize,
-        seq: usize,
-    }
+    let width = state.width;
+    let height = state.height;
+    let n = width * height;
 
-    let n = state.width * state.height;
-    let mut dist = vec![i32::MAX / 4; n];
-    let mut parent: Vec<Option<usize>> = vec![None; n];
-    let mut visited = vec![false; n];
-    let mut seq = 0usize;
-    let mut q = Vec::<Node>::new();
+    let start = idx(from.0, from.1, width);
+    let goal = idx(to.0, to.1, width);
 
-    let s = idx(from.0, from.1, state.width);
-    let goal = idx(to.0, to.1, state.width);
-    dist[s] = 0;
-    q.push(Node {
-        cost: 0,
-        x: from.0,
-        y: from.1,
-        seq,
-    });
-    seq += 1;
+    // Cheapest known cost to reach each cell.
+    let mut dist = vec![usize::MAX; n];
 
-    while !q.is_empty() {
-        let mut best = 0usize;
-        for i in 1..q.len() {
-            if q[i].cost < q[best].cost || (q[i].cost == q[best].cost && q[i].seq < q[best].seq) {
-                best = i;
-            }
-        }
-        let node = q.swap_remove(best);
-        let u = idx(node.x, node.y, state.width);
-        if visited[u] {
+    // Previous cell in the cheapest path.
+    let mut parent = vec![None; n];
+
+    // Min-heap implemented using Reverse.
+    //
+    // Tuple:
+    //     cost
+    //     order
+    //     cell index
+    //
+    // `order` gives deterministic tie-breaking.
+    let mut heap = BinaryHeap::new();
+    let mut order = 0usize;
+
+    dist[start] = 0;
+
+    heap.push(Reverse((0, order, start)));
+    order += 1;
+
+    while let Some(Reverse((cost, _, current))) = heap.pop() {
+        // This is an outdated entry.
+        //
+        // A cell can be inserted into the heap multiple times when
+        // we discover progressively cheaper paths to it.
+        if cost != dist[current] {
             continue;
         }
-        visited[u] = true;
-        if u == goal {
+
+        // Since this is the cheapest entry currently in the heap,
+        // we can stop as soon as we reach the destination.
+        if current == goal {
             break;
         }
 
-        for (nx, ny) in neighbors(node.x, node.y, state.width, state.height) {
-            let v = idx(nx, ny, state.width);
-            let extra = if is_rail_cell(state, nx, ny) {
-                0
-            } else {
-                terrain_cost(state.cells[v].terrain)
-            };
-            let nd = node.cost + extra;
-            if nd < dist[v] {
-                dist[v] = nd;
-                parent[v] = Some(u);
-                q.push(Node {
-                    cost: nd,
-                    x: nx,
-                    y: ny,
-                    seq,
-                });
-                seq += 1;
-            }
+        let x = current % width;
+        let y = current / width;
+
+        // ------------------------------------------------------------
+        // NORTH
+        // ------------------------------------------------------------
+        if y > 0 {
+            relax(
+                state,
+                x,
+                y - 1,
+                current,
+                cost,
+                &mut dist,
+                &mut parent,
+                &mut heap,
+                &mut order,
+            );
+        }
+
+        // ------------------------------------------------------------
+        // EAST
+        // ------------------------------------------------------------
+        if x + 1 < width {
+            relax(
+                state,
+                x + 1,
+                y,
+                current,
+                cost,
+                &mut dist,
+                &mut parent,
+                &mut heap,
+                &mut order,
+            );
+        }
+
+        // ------------------------------------------------------------
+        // SOUTH
+        // ------------------------------------------------------------
+        if y + 1 < height {
+            relax(
+                state,
+                x,
+                y + 1,
+                current,
+                cost,
+                &mut dist,
+                &mut parent,
+                &mut heap,
+                &mut order,
+            );
+        }
+
+        // ------------------------------------------------------------
+        // WEST
+        // ------------------------------------------------------------
+        if x > 0 {
+            relax(
+                state,
+                x - 1,
+                y,
+                current,
+                cost,
+                &mut dist,
+                &mut parent,
+                &mut heap,
+                &mut order,
+            );
         }
     }
 
-    if dist[goal] >= i32::MAX / 8 {
+    // No path.
+    if dist[goal] == usize::MAX {
         return None;
     }
+
+    // ------------------------------------------------------------
+    // Reconstruct path
+    // ------------------------------------------------------------
+
     let mut path = Vec::new();
-    let mut cur = goal;
-    path.push((cur % state.width, cur / state.width));
-    while cur != s {
-        cur = parent[cur]?;
-        path.push((cur % state.width, cur / state.width));
+    let mut current = goal;
+
+    while current != start {
+        path.push((current % width, current / width));
+
+        current = parent[current]?;
     }
+
+    // Add starting cell.
+    path.push(from);
+
+    // We reconstructed backwards.
     path.reverse();
+
     Some(path)
 }
 
@@ -537,6 +942,7 @@ pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
             instability: 0,
             inked: false,
             active: Vec::new(),
+            town_id: None,
         });
         let region = regions.entry(region_id).or_insert(Region {
             cell_ids: Vec::new(),
@@ -550,6 +956,7 @@ pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
     r.read_line(&mut line)?;
     let town_count: usize = line.trim().parse().unwrap();
     let mut towns = Vec::with_capacity(town_count);
+    let mut connections = HashMap::new();
     for _ in 0..town_count {
         line.clear();
         r.read_line(&mut line)?;
@@ -560,12 +967,13 @@ pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
             p[3].split(',').map(|x| x.parse().unwrap()).collect()
         };
         let (x, y) = (p[1].parse().unwrap(), p[2].parse().unwrap());
-        towns.push(Town {
-            id: p[0].parse().unwrap(),
-            x,
-            y,
-            desired,
-        });
+        let id = p[0].parse().unwrap();
+        for k in &desired {
+            connections.insert((id, *k), Connection::new((id, *k), false));
+        }
+        towns.push(Town { id, x, y, desired });
+
+        cells[idx(x, y, width)].town_id = Some(p[0].parse().unwrap());
         let region = regions.get_mut(&cells[x + y * width].region_id);
         if let Some(r) = region {
             r.has_town = true;
@@ -573,7 +981,6 @@ pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
             panic!("region not found");
         }
     }
-
     Ok(State {
         my_id,
         foe_id,
@@ -582,9 +989,10 @@ pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
         cells,
         towns,
         regions,
-        connections: HashSet::new(),
+        connections,
         my_score: 0,
         foe_score: 0,
+        top_cells: [0; 3]
     })
 }
 
@@ -602,8 +1010,10 @@ pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Result<()> {
     for (key, value) in &mut state.regions {
         value.score = [0, 0];
     }
-    state.connections = HashSet::new();
 
+    for (k, v) in &mut state.connections {
+        *v = Connection::new(v.id, v.dead);
+    }
     for i in 0..state.width * state.height {
         line.clear();
         r.read_line(&mut line)?;
@@ -620,7 +1030,13 @@ pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Result<()> {
                 if q.len() == 2 {
                     if let (Ok(a), Ok(b)) = (q[0].parse(), q[1].parse()) {
                         state.cells[i].active.push((a, b));
-                        state.connections.insert((a, b));
+                        let x = i % state.width;
+                        let y = i / state.width;
+                        if let Some(c) = state.connections.get_mut(&(a, b)) {
+                            c.active_path.push((x, y));
+                        } else {
+                            panic!("this should be a registered connection");
+                        }
                     }
                 }
             }
@@ -630,7 +1046,7 @@ pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Result<()> {
             if track_owner != -1 && track_owner != 2 && !state.cells[i].inked {
                 r.score[track_owner as usize] += (1
                     + 2 * (state.cells[i].active.len() as i32)
-                    + 10 * state.cells[i].instability);
+                    + 10 * state.cells[i].instability as i32);
             }
         } else {
             panic!("region not found");
@@ -648,8 +1064,8 @@ pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Result<()> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Connection {
-    pub id: (i32, i32),
+pub struct Conn {
+    pub id: (usize, usize),
     pub path: Vec<(usize, usize)>,
 }
 
@@ -767,14 +1183,14 @@ fn best_forward_path(origin: (usize, usize), desired: (usize, usize)) -> Vec<(us
 
 /// Find all requested town connections.
 ///
-pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
+pub fn find_best_initial_connections(state: &State) -> Vec<Conn> {
     // -------------------------------------------------------------
     // Build an ID -> coordinate map.
     //
     // We only need coordinates while constructing connections, so
     // storing references isn't necessary.
     // -------------------------------------------------------------
-    let towns: HashMap<i32, (usize, usize)> = state
+    let towns: HashMap<usize, (usize, usize)> = state
         .towns
         .iter()
         .map(|town| (town.id, (town.x, town.y)))
@@ -827,7 +1243,7 @@ pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
                 forward_path.into_iter().rev().collect()
             };
 
-            connections.push(Connection {
+            connections.push(Conn {
                 id: (origin_town.id, desired_id),
                 path,
             });
@@ -835,4 +1251,45 @@ pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
     }
 
     connections
+}
+
+#[inline]
+fn relax(
+    state: &State,
+    x: usize,
+    y: usize,
+    current: usize,
+    current_cost: usize,
+    dist: &mut [usize],
+    parent: &mut [Option<usize>],
+    heap: &mut BinaryHeap<Reverse<(usize, usize, usize)>>,
+    order: &mut usize,
+) {
+    let next = idx(x, y, state.width);
+    let cell = &state.cells[next];
+
+    // Inked cells cannot be used.
+    if cell.inked {
+        return;
+    }
+
+    // Existing tracks and towns cost 0.
+    //
+    // Otherwise we pay the terrain cost.
+    let extra_cost = if cell.town_id.is_some() || cell.track_owner != FREE {
+        0
+    } else {
+        terrain_cost(cell.terrain) as usize
+    };
+
+    let new_cost = current_cost + extra_cost;
+
+    if new_cost < dist[next] {
+        dist[next] = new_cost;
+        parent[next] = Some(current);
+
+        heap.push(Reverse((new_cost, *order, next)));
+
+        *order += 1;
+    }
 }

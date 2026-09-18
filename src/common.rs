@@ -1,5 +1,7 @@
-use std::collections::{HashMap, VecDeque, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{self, BufRead};
+
+use eframe::wgpu::wgc::device::UserClosures;
 
 pub const PLAINS: i32 = 0;
 pub const RIVER: i32 = 1;
@@ -114,10 +116,119 @@ impl Action {
 }
 
 pub fn select_best_path_among_several(paths: Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
-    Vec::new()
+    let mut res = Vec::new();
+    res
+}
+
+pub fn bfs_that_returns_all_shortest(
+    state: &State,
+    from: (usize, usize),
+    to: (usize, usize),
+) -> Vec<Vec<(usize, usize)>> {
+    let mut dist: HashMap<(usize, usize), usize> = HashMap::new();
+    let mut parents: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+    let mut frontier = VecDeque::new();
+
+    dist.insert(from, 0);
+    frontier.push_back(from);
+    while let Some(node) = frontier.pop_front() {
+        let d = dist[&node];
+
+        if let Some(&to_dist) = dist.get(&to) {
+            if d > to_dist {
+                break;
+            }
+        }
+        let (x, y) = node;
+        for neighbour in neighbors(x, y, state.width, state.height) {
+            if state.cells[idx(neighbour.0, neighbour.1, state.width)].inked {
+                continue;
+            }
+            if !dist.contains_key(&neighbour) {
+                dist.insert(neighbour, d + 1);
+                parents.insert(neighbour, vec![node]);
+                frontier.push_back(neighbour);
+            } else if dist[&neighbour] == d + 1 {
+                parents.get_mut(&neighbour).unwrap().push(node);
+            }
+        }
+    }
+
+    if !parents.contains_key(&to) {
+        return Vec::new();
+    }
+
+    let mut out = vec![vec![to]];
+    loop {
+        let mut new_out = Vec::new();
+        for path in &out {
+            if let Some(node) = path.last(){
+                if *node == from {
+                    for path in &mut out {
+                        path.reverse();
+                    }
+                    return out;
+                }
+                if let Some(p) = parents.get(node) {
+                    for parent in p {
+                        let mut new_path = path.to_vec();
+                        new_path.push(*parent);
+                        new_out.push(new_path);
+                    }
+                }
+                // for parent in &parents[&node] {
+                //     let mut new_path = path.clone();
+                //     new_path.push(*parent);
+                //     new_out.push(new_path);
+                // }
+            }
+        }
+
+        out = new_out;
+    }
 }
 
 
+fn choose_best_among_shortest_paths(
+    paths: Vec<Vec<(usize, usize)>>,
+) -> Vec<(usize, usize)> {
+    let rank = |from: (usize, usize), to: (usize, usize)| -> usize {
+        match (
+            to.0 as isize - from.0 as isize,
+            to.1 as isize - from.1 as isize,
+        ) {
+            (0, -1) => 1,
+            (1, 0) => 2,
+            (0, 1) => 3,
+            (-1, 0) => 4,
+            _ => unreachable!(),
+        }
+    };
+
+    let mut paths = paths;
+    let mut i = 1;
+
+    while paths.len() > 1 {
+        let mut best_rank = usize::MAX;
+        let mut best_paths = Vec::new();
+
+        for p in paths {
+            let r = rank(p[i - 1], p[i]);
+
+            if r < best_rank {
+                best_rank = r;
+                best_paths = vec![p];
+            } else if r == best_rank {
+                best_paths.push(p);
+            }
+        }
+
+        paths = best_paths;
+        i += 1;
+    }
+
+    paths.into_iter().next().unwrap()
+}
 
 pub fn idx(x: usize, y: usize, w: usize) -> usize {
     y * w + x
@@ -294,7 +405,6 @@ pub fn best_possible_path(
     Some(path)
 }
 
-
 pub fn shortest_active_path(
     state: &State,
     from: (usize, usize),
@@ -462,7 +572,6 @@ pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
         } else {
             panic!("region not found");
         }
-
     }
 
     Ok(State {
@@ -519,8 +628,9 @@ pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Result<()> {
         let region = state.regions.get_mut(&state.cells[i].region_id);
         if let Some(r) = region {
             if track_owner != -1 && track_owner != 2 && !state.cells[i].inked {
-                r.score[track_owner as usize] +=
-                    (1 + 2 * (state.cells[i].active.len() as i32) + 10*state.cells[i].instability);
+                r.score[track_owner as usize] += (1
+                    + 2 * (state.cells[i].active.len() as i32)
+                    + 10 * state.cells[i].instability);
             }
         } else {
             panic!("region not found");
@@ -536,8 +646,6 @@ pub fn read_turn<R: BufRead>(r: &mut R, state: &mut State) -> io::Result<()> {
     }
     Ok(())
 }
-
-
 
 #[derive(Clone, Debug)]
 pub struct Connection {
@@ -578,10 +686,7 @@ impl Direction {
 /// Y increases downward:
 ///     North = y - 1
 ///     South = y + 1
-fn direction_between(
-    from: (usize, usize),
-    to: (usize, usize),
-) -> Direction {
+fn direction_between(from: (usize, usize), to: (usize, usize)) -> Direction {
     match (
         to.0 as isize - from.0 as isize,
         to.1 as isize - from.1 as isize,
@@ -597,10 +702,7 @@ fn direction_between(
 /// Builds the lexicographically best Manhattan shortest path
 /// from `origin` to `desired`.
 ///
-fn best_forward_path(
-    origin: (usize, usize),
-    desired: (usize, usize),
-) -> Vec<(usize, usize)> {
+fn best_forward_path(origin: (usize, usize), desired: (usize, usize)) -> Vec<(usize, usize)> {
     let dx = desired.0 as isize - origin.0 as isize;
     let dy = desired.1 as isize - origin.1 as isize;
 
@@ -615,7 +717,6 @@ fn best_forward_path(
 
     let mut x = origin.0;
     let mut y = origin.1;
-
 
     // NORTH
     if dy < 0 {
@@ -680,11 +781,7 @@ pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
         .collect();
 
     // Count connections first so we can allocate the result once.
-    let connection_count: usize = state
-        .towns
-        .iter()
-        .map(|town| town.desired.len())
-        .sum();
+    let connection_count: usize = state.towns.iter().map(|town| town.desired.len()).sum();
 
     let mut connections = Vec::with_capacity(connection_count);
 
@@ -713,11 +810,9 @@ pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
                 forward_path[forward_path.len() - 1]
             };
 
-            let forward_direction =
-                direction_between(origin, forward_first_step);
+            let forward_direction = direction_between(origin, forward_first_step);
 
-            let reverse_direction =
-                direction_between(desired, reverse_first_step);
+            let reverse_direction = direction_between(desired, reverse_first_step);
 
             // -----------------------------------------------------
             // STEP 2:
@@ -726,9 +821,7 @@ pub fn find_best_initial_connections(state: &State) -> Vec<Connection> {
             //
             // NORTH > EAST > SOUTH > WEST
             // -----------------------------------------------------
-            let path = if forward_direction.rank()
-                <= reverse_direction.rank()
-            {
+            let path = if forward_direction.rank() <= reverse_direction.rank() {
                 forward_path
             } else {
                 forward_path.into_iter().rev().collect()

@@ -27,9 +27,9 @@ fn main() {
     state.cells[idx(10, 4, state.width)].inked = true;
 
     let res2 = find_best_initial_connections(&state);
-    let res3 = bfs_that_returns_all_shortest(&state, (10,5), (3, 3));
-    let res = choose_best_among_shortest_paths(res3);
-    println!("{res:?}");
+    // let res3 = bfs_that_returns_all_shortest(&state, (10,5), (3, 3));
+    // let res = choose_best_among_shortest_paths(res3);
+    // println!("{res:?}");
 
 }
 

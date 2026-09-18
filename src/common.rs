@@ -27,44 +27,23 @@ pub struct Cell {
 
 impl Cell {
     pub fn score(&self, state: &State, player: usize) -> i32 {
-        if self.town_id != None || self.track_owner != -1 {
+        if self.town_id != None || self.track_owner != -1 || self.inked {
             return -1000000;
         }
-
         let mut score = 0;
         let cell_coord = (self.cell_id % state.width, self.cell_id / state.width);
         for (_, connection) in &state.connections {
-            let mut connection_score = 0;
-
-            let mult = if connection.ownership[player]
-                >= connection.ownership[(player + 1) % 2] - 1
-            {
-                3
-            } else {
-                1
-            };
-
             for coord in &connection.best_path {
                 if *coord == cell_coord {
-                    connection_score += 2;
+                    score += 1;
                 }
             }
-
             for coord in &connection.quickest_path {
                 if *coord == cell_coord {
-                    connection_score += 2;
+                    score += 1;
                 }
             }
-
-            connection_score -= connection.instability;
-            connection_score += connection.best_path.len() as i32;
-            connection_score -= connection.paints_to_activate as i32 * 2;
-
-            connection_score *= mult;
-
-            score += connection_score;
         }
-
         score
     }
 }
@@ -139,8 +118,22 @@ impl Connection {
         }
     }
 
+    pub fn score(&self, state: &State, player: usize) -> i32 {
+        let mut connection_score  = 0;
+        let mult = if self.ownership[player] >= self.ownership[(player + 1) % 2] - 1 {
+            3
+        } else {
+            1
+        };
+
+        connection_score -= self.instability;
+        connection_score += self.best_path.len() as i32;
+        connection_score -= self.paints_to_activate as i32 * 2;
+        connection_score *= mult;
+        connection_score
+    }
+
     pub fn analyse(&mut self, state: &State) {
-        
         if self.dead {
             return;
         }
@@ -165,7 +158,7 @@ impl Connection {
             (state.towns[self.id.1].x, state.towns[self.id.1].y),
         );
         self.best_path = bfs_shortest(state, from, to);
-            
+
         if self.best_path.is_empty() {
             self.dead = true;
             return;
@@ -244,7 +237,6 @@ impl State {
         let mut connections = std::mem::take(&mut self.connections);
 
         for connection in connections.values_mut() {
-            
             connection.analyse(self);
         }
 
@@ -256,7 +248,7 @@ impl State {
         self.top_cells = [0; 3];
         for cell in &self.cells {
             let score = cell.score(self, player);
-            if  score > top_scores[0] {
+            if score > top_scores[0] {
                 top_scores[0] = score;
                 self.top_cells[0] = cell.cell_id;
                 if top_scores[0] > top_scores[1] {
@@ -269,7 +261,6 @@ impl State {
                 }
             }
         }
-
     }
 }
 
@@ -307,8 +298,6 @@ impl Action {
         }
     }
 }
-
-
 
 pub fn bfs_shortest(
     state: &State,
@@ -430,7 +419,6 @@ pub fn bfs_shortest(
     path
 }
 
-
 #[inline]
 fn visit(
     x: usize,
@@ -459,116 +447,51 @@ fn visit(
     frontier.push_back(next);
 }
 
-
-pub fn bfs_that_returns_all_shortest(
+pub fn bfs_best_shortest_path_last(
     state: &State,
     from: (usize, usize),
     to: (usize, usize),
-) -> Vec<Vec<(usize, usize)>> {
-    let mut dist: HashMap<(usize, usize), usize> = HashMap::new();
-    let mut parents: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+) -> Vec<(usize, usize)> {
+    let mut visited = HashSet::new();
+    let mut parent: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
     let mut frontier = VecDeque::new();
 
-    dist.insert(from, 0);
+    visited.insert(from);
     frontier.push_back(from);
-    while let Some(node) = frontier.pop_front() {
-        let d = dist[&node];
 
-        if let Some(&to_dist) = dist.get(&to) {
-            if d > to_dist {
-                break;
-            }
+    while let Some(node) = frontier.pop_front() {
+        if node == to {
+            break;
         }
+
         let (x, y) = node;
+
         for neighbour in neighbors(x, y, state.width, state.height) {
             if state.cells[idx(neighbour.0, neighbour.1, state.width)].inked {
                 continue;
             }
-            if !dist.contains_key(&neighbour) {
-                dist.insert(neighbour, d + 1);
-                parents.insert(neighbour, vec![node]);
+
+            if visited.insert(neighbour) {
+                parent.insert(neighbour, node);
                 frontier.push_back(neighbour);
-            } else if dist[&neighbour] == d + 1 {
-                parents.get_mut(&neighbour).unwrap().push(node);
             }
         }
     }
 
-    if !parents.contains_key(&to) {
+    if !visited.contains(&to) {
         return Vec::new();
     }
 
-    let mut out = vec![vec![to]];
-    loop {
-        let mut new_out = Vec::new();
-        for path in &out {
-            if let Some(node) = path.last() {
-                if *node == from {
-                    for path in &mut out {
-                        path.reverse();
-                    }
-                    return out;
-                }
-                if let Some(p) = parents.get(node) {
-                    for parent in p {
-                        let mut new_path = path.to_vec();
-                        new_path.push(*parent);
-                        new_out.push(new_path);
-                    }
-                }
-                // for parent in &parents[&node] {
-                //     let mut new_path = path.clone();
-                //     new_path.push(*parent);
-                //     new_out.push(new_path);
-                // }
-            }
-        }
+    let mut path = vec![to];
+    let mut current = to;
 
-        out = new_out;
-    }
-}
-
-pub fn choose_best_among_shortest_paths(paths: Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
-    if paths.is_empty() {
-        return Vec::new();
+    while current != from {
+        current = parent[&current];
+        path.push(current);
     }
 
-    let rank = |from: (usize, usize), to: (usize, usize)| -> usize {
-        match (
-            to.0 as isize - from.0 as isize,
-            to.1 as isize - from.1 as isize,
-        ) {
-            (0, -1) => 1,
-            (1, 0) => 2,
-            (0, 1) => 3,
-            (-1, 0) => 4,
-            _ => unreachable!(),
-        }
-    };
-
-    let mut paths = paths;
-    let mut i = 1;
-
-    while paths.len() > 1 {
-        let mut best_rank = usize::MAX;
-        let mut best_paths = Vec::new();
-
-        for p in paths {
-            let r = rank(p[i - 1], p[i]);
-
-            if r < best_rank {
-                best_rank = r;
-                best_paths = vec![p];
-            } else if r == best_rank {
-                best_paths.push(p);
-            }
-        }
-
-        paths = best_paths;
-        i += 1;
-    }
-
-    paths.into_iter().next().unwrap()
+    path.reverse();
+    path
 }
 
 pub fn idx(x: usize, y: usize, w: usize) -> usize {
@@ -992,7 +915,7 @@ pub fn parse_initial<R: BufRead>(r: &mut R) -> io::Result<State> {
         connections,
         my_score: 0,
         foe_score: 0,
-        top_cells: [0; 3]
+        top_cells: [0; 3],
     })
 }
 
